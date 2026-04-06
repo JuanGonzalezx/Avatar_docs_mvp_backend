@@ -1,0 +1,11 @@
+flask
+flask-cors
+python-dotenv
+requests
+gunicorn
+google-auth
+google-api-python-client
+langgraph
+langchain-google-genai
+langchain-core
+pydantic

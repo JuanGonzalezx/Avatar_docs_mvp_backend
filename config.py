@@ -1,0 +1,12 @@
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+HEYGEN_API_KEY = os.getenv("HEYGEN_API_KEY")
+LIVEAVATAR_AVATAR_ID = os.getenv("LIVEAVATAR_AVATAR_ID", "1c690fe7-23e0-49f9-bfba-14344450285b")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+TURSO_DATABASE_URL = os.getenv("TURSO_DATABASE_URL")
+TURSO_AUTH_TOKEN = os.getenv("TURSO_AUTH_TOKEN")
+GOOGLE_DOCS_TEMPLATE_ID = os.getenv("GOOGLE_DOCS_TEMPLATE_ID", "17iF9ARZMKpGOO0yuKz6w5AfSbPyhO_lVpYFilGhavC0")
+GOOGLE_DRIVE_FOLDER_ID = os.getenv("GOOGLE_DRIVE_FOLDER_ID", "")
