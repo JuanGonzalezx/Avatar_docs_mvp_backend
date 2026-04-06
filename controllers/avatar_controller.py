@@ -25,7 +25,9 @@ def get_access_token():
             json={
                 "mode": "FULL",
                 "avatar_id": LIVEAVATAR_AVATAR_ID,
-                "avatar_persona": {},
+                "avatar_persona": {
+                    "language": "es",
+                },
             },
         )
         data = response.json()

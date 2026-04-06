@@ -54,7 +54,7 @@ def nodo_generar_documento(state: AgentState) -> dict:
     return {
         "documento_generado": True,
         "documento_url": doc_url,
-        "respuesta": f"¡Perfecto! He recopilado toda la información y el documento de la oportunidad ha sido generado exitosamente. Puedes acceder a él aquí: {doc_url}",
+        "respuesta": "¡Perfecto! He recopilado toda la información y el documento de la oportunidad ha sido generado exitosamente. Puedes acceder a él haciendo clic en el botón de la pantalla.",
     }
 
 
