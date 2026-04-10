@@ -8,7 +8,6 @@ from pydantic import BaseModel, Field
 from config import GEMINI_API_KEY
 from agent.state import AgentState, campos_faltantes, CAMPOS_REQUERIDOS
 
-
 # --- Pydantic schema for structured output ---
 class RespuestaAgente(BaseModel):
     """Structured output from the Gemini LLM."""
@@ -26,19 +25,17 @@ class RespuestaAgente(BaseModel):
     importancia_problema: Optional[str] = Field(default=None, description="Importancia estratégica del problema")
     anexos: Optional[str] = Field(default=None, description="Descripción de anexos mencionados por el usuario")
 
-
 # --- System prompt ---
-SYSTEM_PROMPT = """Eres un asistente virtual de la Fundación Luker. Tu tarea es extraer variables vitales de una conversación de forma rápida, natural y conversacional.
+SYSTEM_PROMPT = """Eres un consultor experto y empático de la Fundación Luker. Tienes una conversación fluida, profesional y humana para entender una nueva oportunidad de proyecto.
 
-Tu ÚNICO objetivo es llenar estas variables: nombre_oportunidad, proponentes_cargos, origen_oportunidad, situacion_actual, hallazgos, fuente_hallazgos, publico_objetivo, problema_principal, sub_problemas, impacto_esperado, importancia_problema, anexos.
+Tu misión es extraer las siguientes variables para el registro oficial: {campos_faltantes}
 
-REGLAS INFALIBLES:
-1. Revisa la sección "VARIABLES QUE AÚN FALTAN" al final del prompt. Siempre debes terminar tu mensaje con UNA PREGUNTA CORTA para obtener LA ÚNICA (o las únicas) variables que faltan en esa lista. 
-2. EXTRAER DATOS ES TU PRIORIDAD NÚMERO 1: Cada vez que el usuario hable, TOMA SU INFORMACIÓN LITERAL, por coloquial o breve que sea, y ponla en los campos del JSON correspondientes. NUNCA descartes información.
-3. Si el usuario responde "no tengo", "ninguno", o "no aplica" a una pregunta (especialmente sub-problemas o anexos), DEBES asignar el valor "No aplica" a esa variable en tu JSON en lugar de dejarla vacía.
-4. NUNCA resumas ni confirmes lo que el usuario acaba de decir (No digas "Entendido", "He registrado que", etc). Ve directo a la siguiente pregunta.
-5. NO te despidas, ni cierres la conversación, ni asumas que todo terminó mientras haya campos en "VARIABLES QUE AÚN FALTAN". Sigue preguntando insistentemente pero de forma amigable.
-6. SI Y SÓLO SI la lista "VARIABLES QUE AÚN FALTAN" dice exactamente el texto "¡TODAS las variables están completas!", tu única tarea es devolver el siguiente texto literal: "Anotado. Un momento por favor."
+REGLAS DE ORO PARA UNA INTERACCIÓN PERFECTA:
+1. EXTRACCIÓN SILENCIOSA Y OBLIGATORIA: Escucha atentamente al usuario. Si te da información, extráela EXACTAMENTE como la dijo y guárdala en el JSON. NUNCA inventes datos. Si dice "no hay", "la verdad no", o "ninguno" para anexos/sub-problemas, DEBES guardar el texto "No aplica".
+2. CONVERSACIÓN, NO INTERROGATORIO: No dispares preguntas como una ametralladora. Haz UNA pregunta a la vez, o agrupa conceptos de forma muy natural (ej. "Entiendo. ¿Y de dónde nace esta idea y cómo está la situación ahora?").
+3. FLUJO NATURAL: Responde de manera breve y empática a lo que te dicen (ej. "Comprendo", "Qué interesante", "Excelente iniciativa") y luego enlaza sutilmente con la siguiente pregunta.
+4. CERO REPETICIONES: Si el usuario te da una respuesta incompleta, ambigua, o si hay un error en el audio y recibes un texto sin sentido (como "Ah", "¿Cuál es la?"), NO le repitas la misma pregunta exacta como un robot. Reformúlala de una manera distinta y amable.
+5. CIERRE: SI Y SOLO SI la lista de variables faltantes dice "¡TODAS las variables están completas!", tu ÚNICA respuesta debe ser la frase exacta: "Anotado. Un momento por favor."
 
 ESTADO ACTUAL DE VARIABLES RECOPILADAS:
 {estado_actual}
@@ -47,22 +44,35 @@ VARIABLES QUE AÚN FALTAN:
 {campos_faltantes}
 """
 
-
 def _build_llm():
     """Build the Gemini LLM with structured output."""
     llm = ChatGoogleGenerativeAI(
         model="gemini-2.5-flash",
         google_api_key=GEMINI_API_KEY,
-        temperature=0.7,
+        temperature=0.0, # NO TOQUES ESTO. DEBE SER CERO PARA ESTRUCTURAS JSON.
     )
     return llm.with_structured_output(RespuestaAgente)
-
 
 def procesar_mensaje(state: AgentState) -> dict:
     """
     Main processing node: sends the conversation to Gemini and extracts variables.
     Uses structured output to guarantee valid JSON responses.
     """
+    
+    # --- FILTRO ANTI-ECO Y RUIDO DE FONDO ---
+    # Si el usuario mandó basura o ruido, no gastamos tokens ni alteramos el LLM
+    ultimo_mensaje = ""
+    historial = list(state.get("historial_chat", []))
+    if historial and historial[-1]["role"] == "user":
+        ultimo_mensaje = historial[-1]["content"].strip()
+        
+        # Filtro de palabras cortas o ruido de micrófono (evita el bucle de tartamudeo)
+        if len(ultimo_mensaje.split()) < 2 and ultimo_mensaje.lower() not in ["no", "sí", "si", "ninguno", "nada"]:
+            print(f"[WARN] Mensaje de usuario ignorado por ser posible ruido: '{ultimo_mensaje}'")
+            fallback = "¿Perdona, podrías repetirme eso último? Creo que no te escuché bien."
+            historial.append({"role": "assistant", "content": fallback})
+            return {"respuesta": fallback, "historial_chat": historial}
+
     llm = _build_llm()
 
     # Build current state summary for the system prompt
@@ -81,30 +91,28 @@ def procesar_mensaje(state: AgentState) -> dict:
 
     # Build message history for the LLM
     messages = [SystemMessage(content=system_msg)]
-    for msg in state.get("historial_chat", []):
+    for msg in historial:
         if msg["role"] == "user":
             messages.append(HumanMessage(content=msg["content"]))
         else:
             messages.append(AIMessage(content=msg['content']))
 
     # Call LLM with structured output (with safety net)
-    fallback_msg = "Disculpa, tuve un pequeño problema técnico procesando eso. ¿Podrías repetirme tu última respuesta?"
+    fallback_msg = "Disculpa, tuve un pequeño problema procesando eso. ¿Podrías replantear tu última respuesta?"
     try:
         result: RespuestaAgente = llm.invoke(messages)
     except Exception as e:
         print(f"[WARN] Error al invocar Gemini: {e}")
-        historial = list(state.get("historial_chat", []))
         historial.append({"role": "assistant", "content": fallback_msg})
         return {"respuesta": fallback_msg, "historial_chat": historial}
 
-    # Guard against Gemini returning None (safety filter or structured output failure)
+    # Guard against Gemini returning None
     if not result:
         print("[WARN] Gemini devolvió None — pidiendo al usuario que repita.")
-        historial = list(state.get("historial_chat", []))
         historial.append({"role": "assistant", "content": fallback_msg})
         return {"respuesta": fallback_msg, "historial_chat": historial}
 
-    # Build state update — only update fields that the LLM extracted
+    # Build state update
     update = {"respuesta": result.respuesta}
 
     for campo in CAMPOS_REQUERIDOS:
@@ -112,12 +120,9 @@ def procesar_mensaje(state: AgentState) -> dict:
         if nuevo_valor and not state.get(campo):
             update[campo] = nuevo_valor
         elif nuevo_valor and state.get(campo):
-            # Allow overwriting if user corrects information
             update[campo] = nuevo_valor
 
     # Update chat history
-    historial = list(state.get("historial_chat", []))
-    # The last user message was already added by the controller
     historial.append({"role": "assistant", "content": result.respuesta})
     update["historial_chat"] = historial
 
