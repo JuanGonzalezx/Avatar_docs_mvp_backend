@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 HEYGEN_API_KEY = os.getenv("HEYGEN_API_KEY")
-LIVEAVATAR_AVATAR_ID = os.getenv("LIVEAVATAR_AVATAR_ID", "03f8332d-9046-42a1-bff3-3b2309f77b58")
+LIVEAVATAR_AVATAR_ID = os.getenv("LIVEAVATAR_AVATAR_ID", "e9844e6d-847e-4964-a92b-7ecd066f69df")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 TURSO_DATABASE_URL = os.getenv("TURSO_DATABASE_URL")
 TURSO_AUTH_TOKEN = os.getenv("TURSO_AUTH_TOKEN")
