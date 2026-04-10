@@ -2,8 +2,8 @@
 .env
 credentials.json
 client_secret.json
-token.json
 local.db
+token.json
 
 # Python
 __pycache__/
