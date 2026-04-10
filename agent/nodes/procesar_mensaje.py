@@ -67,7 +67,12 @@ def procesar_mensaje(state: AgentState) -> dict:
         ultimo_mensaje = historial[-1]["content"].strip()
         
         # Filtro de palabras cortas o ruido de micrófono (evita el bucle de tartamudeo)
-        if len(ultimo_mensaje.split()) < 2 and ultimo_mensaje.lower() not in ["no", "sí", "si", "ninguno", "nada"]:
+        palabras_permitidas = ["no", "sí", "si", "ninguno", "nada", "hola", "ok", "vale", "listo", "claro"]
+        palabra_limpia = ultimo_mensaje.lower().strip('.,!?¡¿')
+        # Permite el primer mensaje de la sesión siempre para evitar bloquear el arranque
+        es_arranque = len(historial) == 1
+        
+        if not es_arranque and len(ultimo_mensaje.split()) < 2 and palabra_limpia not in palabras_permitidas:
             print(f"[WARN] Mensaje de usuario ignorado por ser posible ruido: '{ultimo_mensaje}'")
             fallback = "¿Perdona, podrías repetirme eso último? Creo que no te escuché bien."
             historial.append({"role": "assistant", "content": fallback})
